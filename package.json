@@ -1,0 +1,35 @@
+{
+  "name": "gamepads",
+  "version": "0.0.1",
+  "description": "gamepads for the browser",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nathanfaucett/gamepads.git"
+  },
+  "main": "src/index.js",
+  "keywords": [
+    "gamepads",
+    "gamepads.js"
+  ],
+  "scripts": {
+    "example": "comn -f ./example/src/index.js -o ./example/index.js"
+  },
+  "author": "Nathan Faucett",
+  "license": "MIT",
+  "readmeFilename": "README.md",
+  "devDependencies": {
+    "comn": "git://github.com/nathanfaucett/comn.git",
+    "grunt": "^0.4.5",
+    "grunt-contrib-jshint": "^0.11.3",
+    "grunt-jsbeautifier": "^0.2.10"
+  },
+  "dependencies": {
+    "environment": "git://github.com/nathanfaucett/environment.git",
+    "event_emitter": "git://github.com/nathanfaucett/event_emitter.git",
+    "event_listener": "git://github.com/nathanfaucett/event_listener.git",
+    "has": "git://github.com/nathanfaucett/has.git",
+    "is_number": "git://github.com/nathanfaucett/is_number.git",
+    "request_animation_frame": "git://github.com/nathanfaucett/request_animation_frame.git",
+    "values": "git://github.com/nathanfaucett/values.git"
+  }
+}
