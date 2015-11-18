@@ -2,20 +2,24 @@ var EventEmitter = require("event_emitter"),
     isNullOrUndefined = require("is_null_or_undefined"),
     isNumber = require("is_number"),
     defaultMapping = require("./defaultMapping"),
-    GamepadButton = require("./GamepadButton");
+    GamepadButton = require("./GamepadButton"),
+    GamepadAxis = require("./GamepadAxis");
 
 
-var GamepadPrototype;
+var reIdFirst = /^(\d+)\-(\d+)\-/,
+    reIdParams = /\([^0-9]+(\d+)[^0-9]+(\d+)\)$/,
+    GamepadPrototype;
 
 
 module.exports = Gamepad;
 
 
-function Gamepad() {
+function Gamepad(id) {
 
     EventEmitter.call(this, -1);
 
-    this.id = null;
+    this.id = id;
+    this.uid = parseId(id);
     this.index = null;
     this.connected = null;
     this.mapping = defaultMapping;
@@ -26,11 +30,29 @@ function Gamepad() {
 EventEmitter.extend(Gamepad);
 GamepadPrototype = Gamepad.prototype;
 
-GamepadPrototype.update = function(e) {
+function parseId(id) {
+    if ((match = id.match(reIdFirst))) {
+        return match[1] + "-" + match[2];
+    } else if ((match = id.match(reIdParams))) {
+        return match[1] + "-" + match[2];
+    } else {
+        return id;
+    }
+}
 
-    this.id = e.id;
+GamepadPrototype.init = function(e) {
+
     this.index = e.index;
     this.connected = e.connected;
+    this.timestamp = e.timestamp;
+
+    Gamepad_update(this, e.axes, e.buttons);
+
+    return this;
+};
+
+GamepadPrototype.update = function(e) {
+
     this.timestamp = e.timestamp;
 
     Gamepad_update(this, e.axes, e.buttons);
@@ -46,13 +68,11 @@ GamepadPrototype.setMapping = function(mapping) {
 GamepadPrototype.disconnect = function(e) {
 
     this.id = e.id;
+    this.uid = parseId(this.id);
     this.index = e.index;
     this.connected = false;
     this.mapping = defaultMapping;
     this.timestamp = e.timestamp;
-
-    this.axes.length = 0;
-    this.buttons.length = 0;
 
     this.emitArg("disconnect", this);
     this.removeAllListeners();
@@ -73,17 +93,17 @@ function Gamepad_update(_this, eventAxis, eventButtons) {
     i = -1;
     il = buttonsMapping.length - 1;
     while (i++ < il) {
-        Gamepad_handleButton(_this, i, buttons, buttonsMapping[i], eventButtons, eventAxis, true);
+        Gamepad_handleButton(_this, i, buttonsMapping[i], buttons, eventButtons, eventAxis);
     }
 
     i = -1;
     il = axesMapping.length - 1;
     while (i++ < il) {
-        Gamepad_handleButton(_this, i, axes, axesMapping[i], eventButtons, eventAxis, false);
+        Gamepad_handleAxis(_this, i, axesMapping[i], axes, eventButtons, eventAxis);
     }
 }
 
-function Gamepad_handleButton(_this, index, buttons, map, eventButtons, eventAxis, isButtonMapping) {
+function Gamepad_handleButton(_this, index, map, buttons, eventButtons, eventAxis) {
     var mapIndex = map.index,
         isButton = map.type === 0,
         eventButton = isButton ? eventButtons[mapIndex] : eventAxis[mapIndex],
@@ -94,7 +114,7 @@ function Gamepad_handleButton(_this, index, buttons, map, eventButtons, eventAxi
         value = isValueEvent ? eventButton : eventButton.value;
         button = buttons[index] || (buttons[index] = new GamepadButton(index));
 
-        if (isButtonMapping && !isButton) {
+        if (!isButton) {
             if (map.full) {
                 value = (1.0 + value) / 2.0;
             } else {
@@ -109,9 +129,24 @@ function Gamepad_handleButton(_this, index, buttons, map, eventButtons, eventAxi
         pressed = isValueEvent ? value !== 0.0 : eventButton.pressed;
 
         if (button.update(pressed, value)) {
-            _this.emitArg(isButtonMapping ? "button" : "axis", button);
+            _this.emitArg("button", button);
         }
+    }
+}
 
-        buttons[index] = button;
+function Gamepad_handleAxis(_this, index, map, axes, eventButtons, eventAxis) {
+    var mapIndex = map.index,
+        isButton = map.type === 0,
+        eventButton = isButton ? eventButtons[mapIndex] : eventAxis[mapIndex],
+        isValueEvent, value, button;
+
+    if (!isNullOrUndefined(eventButton)) {
+        isValueEvent = isNumber(eventButton);
+        value = isValueEvent ? eventButton : eventButton.value;
+        button = axes[index] || (axes[index] = new GamepadAxis(index));
+
+        if (button.update(value)) {
+            _this.emitArg("axis", button);
+        }
     }
 }

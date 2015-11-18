@@ -2,11 +2,20 @@ var $ = require("jquery"),
     MadCatz = require("./MadCatz"),
     gamepads = require("../..");
 
+
+var connected = 0;
+
+
 global.gamepads = gamepads;
 
+gamepads.setMapping("0738-4716", MadCatz);
 
-gamepads.setMapping("Mad Catz, Inc. MadCatz GamePad (Vendor: 0738 Product: 4716)", MadCatz);
-gamepads.setMapping("0738-4716-Mad Catz Wired Xbox 360 Controller", MadCatz);
+
+$("#no-gamepads-connected").addClass("visible");
+
+if (!gamepads.isSupported) {
+    $("#no-gamepad-support").addClass("visible");
+}
 
 
 var domMappings = [
@@ -41,14 +50,17 @@ var domAxisMappings1 = [
     "stick-2-axis-y"
 ];
 
+var axisMappings = [
+    0, 0,
+    0, 0
+];
+
 
 gamepads.on("connect", function(gamepad) {
     var index = gamepad.index,
         id = "gamepad-" + index,
         element = $("#template").first().clone();
-    
-    console.log(gamepad.id);
-    
+        
     element.attr("id", id);
     element.find(".index").html(index);
 
@@ -57,7 +69,7 @@ gamepads.on("connect", function(gamepad) {
     gamepad.on("button", function(button) {
         var elButton = element.find(".buttons div[name=" + domMappings[button.index] + "]"),
             elLabel = element.find(".labels label[for=" + domMappings[button.index] + "]");
-            
+
         if (button.pressed) {
             elButton.addClass("pressed");
         } else {
@@ -66,18 +78,37 @@ gamepads.on("connect", function(gamepad) {
 
         elLabel.text(button.value.toFixed(2));
     });
+    
     gamepad.on("axis", function(axis) {
         var elButton = element.find(".buttons div[name=" + domAxisMappings0[(axis.index < 2 ? 0 : 1)] + "]"),
-            elLabel = element.find(".labels label[for=" + domAxisMappings1[axis.index] + "]");
+            elLabel = element.find(".labels label[for=" + domAxisMappings1[axis.index] + "]"),
+            x, y, angle;
     
+        axisMappings[axis.index] = axis.value;
+        
         if (axis.index % 2 === 0) {
-            elButton.css("margin-left", (axis.value * 25) + "px");
+            x = axisMappings[axis.index];
+            y = axisMappings[axis.index + 1];
         } else {
-            elButton.css("margin-top", (axis.value * 25) + "px");
+            x = axisMappings[axis.index - 1];
+            y = axisMappings[axis.index];
         }
+        
+        angle = Math.atan2(y, x);
+        x = Math.cos(angle) * Math.abs(x);
+        y = Math.sin(angle) * Math.abs(y);
+    
+        elButton.css("margin-left", (x * 25) + "px");
+        elButton.css("margin-top", (y * 25) + "px");
 
         elLabel.text(axis.value.toFixed(2));
     });
+
+    if (connected === 0) {
+        $("#no-gamepads-connected").removeClass("visible");
+    }
+
+    connected += 1;
 });
 
 gamepads.on("disconnect", function(gamepad) {
@@ -86,4 +117,10 @@ gamepads.on("disconnect", function(gamepad) {
         element = $("#" + id);
 
     $("#" + id).remove();
+
+    connected -= 1;
+
+    if (connected === 0) {
+        $("#no-gamepads-connected").addClass("visible");
+    }
 });

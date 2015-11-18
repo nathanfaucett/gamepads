@@ -293,6 +293,11 @@ a {
   top: 178px;
 }
 
+.gamepad > .buttons > [name='button-special'] {
+  left: 440px;
+  top: 160px;
+}
+
 /* Sticks. */
 
 .gamepad > .buttons > .stick {
@@ -520,6 +525,16 @@ a {
 }
 .gamepad > .labels > label[for="button-start"]::after {
   content: 'buttons[9]';
+}
+.gamepad > .labels > label[for="button-special"] {
+  left: 490px;
+  top: 10px;
+}
+.gamepad > .labels > label[for="button-special"]::before {
+  content: 'Special';
+}
+.gamepad > .labels > label[for="button-special"]::after {
+  content: 'buttons[16]';
 }
 .gamepad > .labels > label[for="stick-1-axis-x"] {
   left: 380px;

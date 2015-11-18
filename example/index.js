@@ -63,11 +63,20 @@ var $ = require(1),
     MadCatz = require(2),
     gamepads = require(3);
 
+
+var connected = 0;
+
+
 global.gamepads = gamepads;
 
+gamepads.setMapping("0738-4716", MadCatz);
 
-gamepads.setMapping("Mad Catz, Inc. MadCatz GamePad (Vendor: 0738 Product: 4716)", MadCatz);
-gamepads.setMapping("0738-4716-Mad Catz Wired Xbox 360 Controller", MadCatz);
+
+$("#no-gamepads-connected").addClass("visible");
+
+if (!gamepads.isSupported) {
+    $("#no-gamepad-support").addClass("visible");
+}
 
 
 var domMappings = [
@@ -102,14 +111,17 @@ var domAxisMappings1 = [
     "stick-2-axis-y"
 ];
 
+var axisMappings = [
+    0, 0,
+    0, 0
+];
+
 
 gamepads.on("connect", function(gamepad) {
     var index = gamepad.index,
         id = "gamepad-" + index,
         element = $("#template").first().clone();
-    
-    console.log(gamepad.id);
-    
+        
     element.attr("id", id);
     element.find(".index").html(index);
 
@@ -118,7 +130,7 @@ gamepads.on("connect", function(gamepad) {
     gamepad.on("button", function(button) {
         var elButton = element.find(".buttons div[name=" + domMappings[button.index] + "]"),
             elLabel = element.find(".labels label[for=" + domMappings[button.index] + "]");
-            
+
         if (button.pressed) {
             elButton.addClass("pressed");
         } else {
@@ -127,18 +139,37 @@ gamepads.on("connect", function(gamepad) {
 
         elLabel.text(button.value.toFixed(2));
     });
+    
     gamepad.on("axis", function(axis) {
         var elButton = element.find(".buttons div[name=" + domAxisMappings0[(axis.index < 2 ? 0 : 1)] + "]"),
-            elLabel = element.find(".labels label[for=" + domAxisMappings1[axis.index] + "]");
+            elLabel = element.find(".labels label[for=" + domAxisMappings1[axis.index] + "]"),
+            x, y, angle;
     
+        axisMappings[axis.index] = axis.value;
+        
         if (axis.index % 2 === 0) {
-            elButton.css("margin-left", (axis.value * 25) + "px");
+            x = axisMappings[axis.index];
+            y = axisMappings[axis.index + 1];
         } else {
-            elButton.css("margin-top", (axis.value * 25) + "px");
+            x = axisMappings[axis.index - 1];
+            y = axisMappings[axis.index];
         }
+        
+        angle = Math.atan2(y, x);
+        x = Math.cos(angle) * Math.abs(x);
+        y = Math.sin(angle) * Math.abs(y);
+    
+        elButton.css("margin-left", (x * 25) + "px");
+        elButton.css("margin-top", (y * 25) + "px");
 
         elLabel.text(axis.value.toFixed(2));
     });
+
+    if (connected === 0) {
+        $("#no-gamepads-connected").removeClass("visible");
+    }
+
+    connected += 1;
 });
 
 gamepads.on("disconnect", function(gamepad) {
@@ -147,6 +178,12 @@ gamepads.on("disconnect", function(gamepad) {
         element = $("#" + id);
 
     $("#" + id).remove();
+
+    connected -= 1;
+
+    if (connected === 0) {
+        $("#no-gamepads-connected").addClass("visible");
+    }
 });
 
 
@@ -9451,14 +9488,13 @@ function(require, exports, module, undefined, global) {
 /* ../../src/index.js */
 
 var has = require(5),
-    values = require(6),
-    environment = require(7),
-    eventListener = require(8),
-    EventEmitter = require(9),
-    requestAnimationFrame = require(10),
-    isSupported = require(11),
-    defaultMapping = require(12),
-    Gamepad = require(13);
+    environment = require(6),
+    eventListener = require(7),
+    EventEmitter = require(8),
+    requestAnimationFrame = require(9),
+    isSupported = require(10),
+    defaultMapping = require(11),
+    Gamepad = require(12);
 
 
 var window = environment.window,
@@ -9466,9 +9502,12 @@ var window = environment.window,
 
     gamepads = new EventEmitter(),
     mapping = {
-        defaultMapping: defaultMapping
+        "default": defaultMapping
     },
-    controllers = {};
+    polling = false,
+    activeControllers = 0,
+    pollId = null,
+    controllers = [];
 
 
 gamepads.isSupported = isSupported;
@@ -9478,7 +9517,11 @@ gamepads.setMapping = function(id, mappings) {
 };
 
 gamepads.all = function() {
-    return values(controllers);
+    return controllers.slice();
+};
+
+gamepads.getActiveCount = function() {
+    return activeControllers;
 };
 
 gamepads.get = function(index) {
@@ -9486,19 +9529,38 @@ gamepads.get = function(index) {
 };
 
 gamepads.hasGamepad = hasGamepad;
+gamepads.hasMapping = hasMapping;
 
 function onGamepadConnected(e) {
     var gamepad = e.gamepad;
+
+    if (!polling) {
+        startPollingGamepads();
+    }
+
     updateGamepad(gamepad.index, gamepad);
 }
 
 function onGamepadDisconnected(e) {
     var gamepad = e.gamepad;
+
     removeGamepad(gamepad.index, gamepad);
+
+    if (activeControllers === 0 && polling) {
+        stopPollingGamepads();
+    }
 }
 
 function hasGamepad(index) {
-    return has(controllers, index);
+    return !!controllers[index];
+}
+
+function hasMapping(id) {
+    return has(mapping, id);
+}
+
+function getMapping(id) {
+    return hasMapping(id) ? mapping[id] : defaultMapping;
 }
 
 function updateGamepad(index, eventGamepad) {
@@ -9507,10 +9569,14 @@ function updateGamepad(index, eventGamepad) {
     if (hasGamepad(index)) {
         controllers[index].update(eventGamepad);
     } else {
-        gamepad = new Gamepad();
-        gamepad.setMapping(mapping[eventGamepad.id] || defaultMapping);
-        gamepad.update(eventGamepad);
+        gamepad = new Gamepad(eventGamepad.id);
+
+        gamepad.setMapping(getMapping(gamepad.uid));
+        gamepad.init(eventGamepad);
+
         controllers[index] = gamepad;
+        activeControllers += 1;
+
         gamepads.emitArg("connect", gamepad);
     }
 }
@@ -9519,6 +9585,9 @@ function removeGamepad(index, eventGamepad) {
     var gamepad = controllers[index];
 
     if (gamepad) {
+        controllers.splice(index, 1);
+        activeControllers -= 1;
+
         gamepad.disconnect(eventGamepad);
         gamepads.emitArg("disconnect", gamepad);
     }
@@ -9539,16 +9608,32 @@ function getGamepads() {
     }
 }
 
+function startPollingGamepads() {
+    if (!polling) {
+        polling = true;
+        pollId = requestAnimationFrame(pollGamepads);
+    }
+}
+
+function stopPollingGamepads() {
+    if (polling) {
+        polling = false;
+        requestAnimationFrame.cancel(pollId);
+    }
+}
+
 function pollGamepads() {
     getGamepads();
-    requestAnimationFrame(pollGamepads);
+    pollId = requestAnimationFrame(pollGamepads);
 }
+
 
 eventListener.on(window, "gamepadconnected", onGamepadConnected);
 eventListener.on(window, "gamepaddisconnected", onGamepadDisconnected);
 
+
 if (!("ongamepadconnected" in window)) {
-    requestAnimationFrame(pollGamepads);
+    startPollingGamepads();
 }
 
 
@@ -9656,9 +9741,9 @@ process.umask = function() { return 0; };
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/has/src/index.js */
 
-var isNative = require(14),
-    getPrototypeOf = require(15),
-    isNullOrUndefined = require(16);
+var isNative = require(13),
+    getPrototypeOf = require(14),
+    isNullOrUndefined = require(15);
 
 
 var nativeHasOwnProp = Object.prototype.hasOwnProperty,
@@ -9690,36 +9775,6 @@ if (isNative(nativeHasOwnProp)) {
             return (key in object) && (!(key in proto) || proto[key] !== object[key]);
         }
     };
-}
-
-
-},
-function(require, exports, module, undefined, global) {
-/* ../../node_modules/values/src/index.js */
-
-var keys = require(24);
-
-
-module.exports = values;
-
-
-function values(object) {
-    return objectValues(object, keys(object));
-}
-
-values.objectValues = objectValues;
-
-function objectValues(object, objectKeys) {
-    var length = objectKeys.length,
-        results = new Array(length),
-        i = -1,
-        il = length - 1;
-
-    while (i++ < il) {
-        results[i] = object[objectKeys[i]];
-    }
-
-    return results;
 }
 
 
@@ -9761,10 +9816,10 @@ function(require, exports, module, undefined, global) {
 /* ../../node_modules/event_listener/src/index.js */
 
 var process = require(4);
-var isObject = require(23),
-    isFunction = require(17),
-    environment = require(7),
-    eventTable = require(25);
+var isObject = require(22),
+    isFunction = require(16),
+    environment = require(6),
+    eventTable = require(23);
 
 
 var eventListener = module.exports,
@@ -9909,12 +9964,12 @@ if (isFunction(document.addEventListener)) {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/event_emitter/src/index.js */
 
-var isFunction = require(17),
-    inherits = require(28),
-    fastSlice = require(29),
-    keys = require(24),
-    isNumber = require(27),
-    isNullOrUndefined = require(16);
+var isFunction = require(16),
+    inherits = require(26),
+    fastSlice = require(27),
+    keys = require(28),
+    isNumber = require(25),
+    isNullOrUndefined = require(15);
 
 
 var EventEmitterPrototype;
@@ -10379,9 +10434,9 @@ EventEmitter.extend = function(child) {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/request_animation_frame/src/index.js */
 
-var environment = require(7),
-    emptyFunction = require(36),
-    now = require(37);
+var environment = require(6),
+    emptyFunction = require(35),
+    now = require(36);
 
 
 var window = environment.window,
@@ -10458,13 +10513,13 @@ module.exports = requestAnimationFrame;
 function(require, exports, module, undefined, global) {
 /* ../../src/isSupported.js */
 
-var environment = require(7);
+var environment = require(6);
 
 
 var navigator = environment.window.navigator;
 
 
-module.exports = !!(navigator.webkitGetGamepads || navigator.webkitGamepads);
+module.exports = !!(navigator.getGamepads || navigator.gamepads || navigator.webkitGamepads || navigator.webkitGetGamepads);
 
 
 },
@@ -10544,24 +10599,28 @@ module.exports = {
 function(require, exports, module, undefined, global) {
 /* ../../src/Gamepad.js */
 
-var EventEmitter = require(9),
-    isNullOrUndefined = require(16),
-    isNumber = require(27),
-    defaultMapping = require(12),
-    GamepadButton = require(38);
+var EventEmitter = require(8),
+    isNullOrUndefined = require(15),
+    isNumber = require(25),
+    defaultMapping = require(11),
+    GamepadButton = require(37),
+    GamepadAxis = require(38);
 
 
-var GamepadPrototype;
+var reIdFirst = /^(\d+)\-(\d+)\-/,
+    reIdParams = /\([^0-9]+(\d+)[^0-9]+(\d+)\)$/,
+    GamepadPrototype;
 
 
 module.exports = Gamepad;
 
 
-function Gamepad() {
+function Gamepad(id) {
 
     EventEmitter.call(this, -1);
 
-    this.id = null;
+    this.id = id;
+    this.uid = parseId(id);
     this.index = null;
     this.connected = null;
     this.mapping = defaultMapping;
@@ -10572,11 +10631,29 @@ function Gamepad() {
 EventEmitter.extend(Gamepad);
 GamepadPrototype = Gamepad.prototype;
 
-GamepadPrototype.update = function(e) {
+function parseId(id) {
+    if ((match = id.match(reIdFirst))) {
+        return match[1] + "-" + match[2];
+    } else if ((match = id.match(reIdParams))) {
+        return match[1] + "-" + match[2];
+    } else {
+        return id;
+    }
+}
 
-    this.id = e.id;
+GamepadPrototype.init = function(e) {
+
     this.index = e.index;
     this.connected = e.connected;
+    this.timestamp = e.timestamp;
+
+    Gamepad_update(this, e.axes, e.buttons);
+
+    return this;
+};
+
+GamepadPrototype.update = function(e) {
+
     this.timestamp = e.timestamp;
 
     Gamepad_update(this, e.axes, e.buttons);
@@ -10592,13 +10669,11 @@ GamepadPrototype.setMapping = function(mapping) {
 GamepadPrototype.disconnect = function(e) {
 
     this.id = e.id;
+    this.uid = parseId(this.id);
     this.index = e.index;
     this.connected = false;
     this.mapping = defaultMapping;
     this.timestamp = e.timestamp;
-
-    this.axes.length = 0;
-    this.buttons.length = 0;
 
     this.emitArg("disconnect", this);
     this.removeAllListeners();
@@ -10619,17 +10694,17 @@ function Gamepad_update(_this, eventAxis, eventButtons) {
     i = -1;
     il = buttonsMapping.length - 1;
     while (i++ < il) {
-        Gamepad_handleButton(_this, i, buttons, buttonsMapping[i], eventButtons, eventAxis, true);
+        Gamepad_handleButton(_this, i, buttonsMapping[i], buttons, eventButtons, eventAxis);
     }
 
     i = -1;
     il = axesMapping.length - 1;
     while (i++ < il) {
-        Gamepad_handleButton(_this, i, axes, axesMapping[i], eventButtons, eventAxis, false);
+        Gamepad_handleAxis(_this, i, axesMapping[i], axes, eventButtons, eventAxis);
     }
 }
 
-function Gamepad_handleButton(_this, index, buttons, map, eventButtons, eventAxis, isButtonMapping) {
+function Gamepad_handleButton(_this, index, map, buttons, eventButtons, eventAxis) {
     var mapIndex = map.index,
         isButton = map.type === 0,
         eventButton = isButton ? eventButtons[mapIndex] : eventAxis[mapIndex],
@@ -10640,7 +10715,7 @@ function Gamepad_handleButton(_this, index, buttons, map, eventButtons, eventAxi
         value = isValueEvent ? eventButton : eventButton.value;
         button = buttons[index] || (buttons[index] = new GamepadButton(index));
 
-        if (isButtonMapping && !isButton) {
+        if (!isButton) {
             if (map.full) {
                 value = (1.0 + value) / 2.0;
             } else {
@@ -10655,10 +10730,25 @@ function Gamepad_handleButton(_this, index, buttons, map, eventButtons, eventAxi
         pressed = isValueEvent ? value !== 0.0 : eventButton.pressed;
 
         if (button.update(pressed, value)) {
-            _this.emitArg(isButtonMapping ? "button" : "axis", button);
+            _this.emitArg("button", button);
         }
+    }
+}
 
-        buttons[index] = button;
+function Gamepad_handleAxis(_this, index, map, axes, eventButtons, eventAxis) {
+    var mapIndex = map.index,
+        isButton = map.type === 0,
+        eventButton = isButton ? eventButtons[mapIndex] : eventAxis[mapIndex],
+        isValueEvent, value, button;
+
+    if (!isNullOrUndefined(eventButton)) {
+        isValueEvent = isNumber(eventButton);
+        value = isValueEvent ? eventButton : eventButton.value;
+        button = axes[index] || (axes[index] = new GamepadAxis(index));
+
+        if (button.update(value)) {
+            _this.emitArg("axis", button);
+        }
     }
 }
 
@@ -10667,9 +10757,9 @@ function Gamepad_handleButton(_this, index, buttons, map, eventButtons, eventAxi
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/is_native/src/index.js */
 
-var isFunction = require(17),
-    isNullOrUndefined = require(16),
-    escapeRegExp = require(18);
+var isFunction = require(16),
+    isNullOrUndefined = require(15),
+    escapeRegExp = require(17);
 
 
 var reHostCtor = /^\[object .+?Constructor\]$/,
@@ -10717,9 +10807,9 @@ isHostObject = function isHostObject(value) {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/get_prototype_of/src/index.js */
 
-var isObject = require(23),
-    isNative = require(14),
-    isNullOrUndefined = require(16);
+var isObject = require(22),
+    isNative = require(13),
+    isNullOrUndefined = require(15);
 
 
 var nativeGetPrototypeOf = Object.getPrototypeOf,
@@ -10758,8 +10848,8 @@ if (isNative(nativeGetPrototypeOf)) {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/is_null_or_undefined/src/index.js */
 
-var isNull = require(19),
-    isUndefined = require(20);
+var isNull = require(18),
+    isUndefined = require(19);
 
 
 module.exports = isNullOrUndefined;
@@ -10812,7 +10902,7 @@ module.exports = isFunction;
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/escape_regexp/src/index.js */
 
-var toString = require(21);
+var toString = require(20);
 
 
 var reRegExpChars = /[.*+?\^${}()|\[\]\/\\]/g,
@@ -10860,8 +10950,8 @@ function isUndefined(value) {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/to_string/src/index.js */
 
-var isString = require(22),
-    isNullOrUndefined = require(16);
+var isString = require(21),
+    isNullOrUndefined = require(15);
 
 
 module.exports = toString;
@@ -10894,7 +10984,7 @@ function isString(value) {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/is_object/src/index.js */
 
-var isNull = require(19);
+var isNull = require(18);
 
 
 module.exports = isObject;
@@ -10908,52 +10998,10 @@ function isObject(value) {
 
 },
 function(require, exports, module, undefined, global) {
-/* ../../node_modules/keys/src/index.js */
-
-var has = require(5),
-    isNative = require(14),
-    isNullOrUndefined = require(16),
-    isObject = require(23);
-
-
-var nativeKeys = Object.keys;
-
-
-module.exports = keys;
-
-
-function keys(value) {
-    if (isNullOrUndefined(value)) {
-        return [];
-    } else {
-        return nativeKeys(isObject(value) ? value : Object(value));
-    }
-}
-
-if (!isNative(nativeKeys)) {
-    nativeKeys = function(value) {
-        var localHas = has,
-            out = [],
-            i = 0,
-            key;
-
-        for (key in value) {
-            if (localHas(value, key)) {
-                out[i++] = key;
-            }
-        }
-
-        return out;
-    };
-}
-
-
-},
-function(require, exports, module, undefined, global) {
 /* ../../node_modules/event_listener/src/event_table.js */
 
-var isNode = require(26),
-    environment = require(7);
+var isNode = require(24),
+    environment = require(6);
 
 
 var window = environment.window,
@@ -11363,10 +11411,10 @@ module.exports = {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/is_node/src/index.js */
 
-var isString = require(22),
-    isNullOrUndefined = require(16),
-    isNumber = require(27),
-    isFunction = require(17);
+var isString = require(21),
+    isNullOrUndefined = require(15),
+    isNumber = require(25),
+    isFunction = require(16);
 
 
 var isNode;
@@ -11405,10 +11453,10 @@ function isNumber(value) {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/inherits/src/index.js */
 
-var create = require(30),
-    extend = require(31),
-    mixin = require(32),
-    defineProperty = require(33);
+var create = require(29),
+    extend = require(30),
+    mixin = require(31),
+    defineProperty = require(32);
 
 
 var descriptor = {
@@ -11457,8 +11505,8 @@ function defineStatic(name, value) {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/fast_slice/src/index.js */
 
-var clamp = require(35),
-    isNumber = require(27);
+var clamp = require(34),
+    isNumber = require(25);
 
 
 module.exports = fastSlice;
@@ -11485,11 +11533,53 @@ function fastSlice(array, offset) {
 
 },
 function(require, exports, module, undefined, global) {
+/* ../../node_modules/keys/src/index.js */
+
+var has = require(5),
+    isNative = require(13),
+    isNullOrUndefined = require(15),
+    isObject = require(22);
+
+
+var nativeKeys = Object.keys;
+
+
+module.exports = keys;
+
+
+function keys(value) {
+    if (isNullOrUndefined(value)) {
+        return [];
+    } else {
+        return nativeKeys(isObject(value) ? value : Object(value));
+    }
+}
+
+if (!isNative(nativeKeys)) {
+    nativeKeys = function(value) {
+        var localHas = has,
+            out = [],
+            i = 0,
+            key;
+
+        for (key in value) {
+            if (localHas(value, key)) {
+                out[i++] = key;
+            }
+        }
+
+        return out;
+    };
+}
+
+
+},
+function(require, exports, module, undefined, global) {
 /* ../../node_modules/create/src/index.js */
 
-var isNull = require(19),
-    isNative = require(14),
-    isPrimitive = require(34);
+var isNull = require(18),
+    isNative = require(13),
+    isPrimitive = require(33);
 
 
 var nativeCreate = Object.create;
@@ -11530,7 +11620,7 @@ module.exports = create;
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/extend/src/index.js */
 
-var keys = require(24);
+var keys = require(28);
 
 
 module.exports = extend;
@@ -11564,8 +11654,8 @@ function baseExtend(a, b) {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/mixin/src/index.js */
 
-var keys = require(24),
-    isNullOrUndefined = require(16);
+var keys = require(28),
+    isNullOrUndefined = require(15);
 
 
 module.exports = mixin;
@@ -11602,10 +11692,10 @@ function baseMixin(a, b) {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/define_property/src/index.js */
 
-var isObject = require(23),
-    isFunction = require(17),
-    isPrimitive = require(34),
-    isNative = require(14),
+var isObject = require(22),
+    isFunction = require(16),
+    isPrimitive = require(33),
+    isNative = require(13),
     has = require(5);
 
 
@@ -11662,7 +11752,7 @@ if (!isNative(nativeDefineProperty) || !(function() {
 function(require, exports, module, undefined, global) {
 /* ../../node_modules/is_primitive/src/index.js */
 
-var isNullOrUndefined = require(16);
+var isNullOrUndefined = require(15);
 
 
 module.exports = isPrimitive;
@@ -11776,6 +11866,30 @@ GamepadButtonPrototype.update = function(pressed, value) {
     var changed = value !== this.value;
 
     this.pressed = pressed;
+    this.value = value;
+
+    return changed;
+};
+
+
+},
+function(require, exports, module, undefined, global) {
+/* ../../src/GamepadAxis.js */
+
+var GamepadAxisPrototype = GamepadAxis.prototype;
+
+
+module.exports = GamepadAxis;
+
+
+function GamepadAxis(index) {
+    this.index = index;
+    this.value = 0.0;
+}
+
+GamepadAxisPrototype.update = function(value) {
+    var changed = value !== this.value;
+
     this.value = value;
 
     return changed;

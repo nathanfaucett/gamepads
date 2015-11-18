@@ -1,5 +1,4 @@
 var has = require("has"),
-    values = require("values"),
     environment = require("environment"),
     eventListener = require("event_listener"),
     EventEmitter = require("event_emitter"),
@@ -14,9 +13,12 @@ var window = environment.window,
 
     gamepads = new EventEmitter(),
     mapping = {
-        defaultMapping: defaultMapping
+        "default": defaultMapping
     },
-    controllers = {};
+    polling = false,
+    activeControllers = 0,
+    pollId = null,
+    controllers = [];
 
 
 gamepads.isSupported = isSupported;
@@ -26,7 +28,11 @@ gamepads.setMapping = function(id, mappings) {
 };
 
 gamepads.all = function() {
-    return values(controllers);
+    return controllers.slice();
+};
+
+gamepads.getActiveCount = function() {
+    return activeControllers;
 };
 
 gamepads.get = function(index) {
@@ -34,19 +40,38 @@ gamepads.get = function(index) {
 };
 
 gamepads.hasGamepad = hasGamepad;
+gamepads.hasMapping = hasMapping;
 
 function onGamepadConnected(e) {
     var gamepad = e.gamepad;
+
+    if (!polling) {
+        startPollingGamepads();
+    }
+
     updateGamepad(gamepad.index, gamepad);
 }
 
 function onGamepadDisconnected(e) {
     var gamepad = e.gamepad;
+
     removeGamepad(gamepad.index, gamepad);
+
+    if (activeControllers === 0 && polling) {
+        stopPollingGamepads();
+    }
 }
 
 function hasGamepad(index) {
-    return has(controllers, index);
+    return !!controllers[index];
+}
+
+function hasMapping(id) {
+    return has(mapping, id);
+}
+
+function getMapping(id) {
+    return hasMapping(id) ? mapping[id] : defaultMapping;
 }
 
 function updateGamepad(index, eventGamepad) {
@@ -55,10 +80,14 @@ function updateGamepad(index, eventGamepad) {
     if (hasGamepad(index)) {
         controllers[index].update(eventGamepad);
     } else {
-        gamepad = new Gamepad();
-        gamepad.setMapping(mapping[eventGamepad.id] || defaultMapping);
-        gamepad.update(eventGamepad);
+        gamepad = new Gamepad(eventGamepad.id);
+
+        gamepad.setMapping(getMapping(gamepad.uid));
+        gamepad.init(eventGamepad);
+
         controllers[index] = gamepad;
+        activeControllers += 1;
+
         gamepads.emitArg("connect", gamepad);
     }
 }
@@ -67,6 +96,9 @@ function removeGamepad(index, eventGamepad) {
     var gamepad = controllers[index];
 
     if (gamepad) {
+        controllers.splice(index, 1);
+        activeControllers -= 1;
+
         gamepad.disconnect(eventGamepad);
         gamepads.emitArg("disconnect", gamepad);
     }
@@ -87,16 +119,32 @@ function getGamepads() {
     }
 }
 
+function startPollingGamepads() {
+    if (!polling) {
+        polling = true;
+        pollId = requestAnimationFrame(pollGamepads);
+    }
+}
+
+function stopPollingGamepads() {
+    if (polling) {
+        polling = false;
+        requestAnimationFrame.cancel(pollId);
+    }
+}
+
 function pollGamepads() {
     getGamepads();
-    requestAnimationFrame(pollGamepads);
+    pollId = requestAnimationFrame(pollGamepads);
 }
+
 
 eventListener.on(window, "gamepadconnected", onGamepadConnected);
 eventListener.on(window, "gamepaddisconnected", onGamepadDisconnected);
 
+
 if (!("ongamepadconnected" in window)) {
-    requestAnimationFrame(pollGamepads);
+    startPollingGamepads();
 }
 
 
