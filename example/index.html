@@ -17,10 +17,88 @@
 
     <title>Example</title>
 
+    <link href="styles.css" rel="stylesheet"/>
+
     <script type="application/javascript" charset="utf-8" async src="index.js"></script>
 
   </head>
 
-  <body></body>
+  <body>
+
+    <h1>Gamepad API tester</h1>
+
+    <div id="no-gamepad-support">
+      Your browser does not seem to support Gamepad API, or it might be
+      we’re not detecting it very well. Sorry!
+    </div>
+
+    <div id="no-gamepads-connected" class="">
+      No gamepads seem to be connected. Be sure to plug in a gamepad and then
+      press any of its buttons to activate it.
+    </div>
+
+    <ul id="gamepads"></ul>
+
+    <div id="template">
+      <li class="gamepad">
+        <div class="buttons">
+          <div class="face" name="button-1"></div>
+          <div class="face" name="button-2"></div>
+          <div class="face" name="button-3"></div>
+          <div class="face" name="button-4"></div>
+
+          <div class="top-shoulder" name="button-left-shoulder-top"></div>
+          <div class="top-shoulder" name="button-right-shoulder-top"></div>
+          <div class="bottom-shoulder" name="button-left-shoulder-bottom"></div>
+          <div class="bottom-shoulder" name="button-right-shoulder-bottom"></div>
+
+          <div class="select-start" name="button-select"></div>
+          <div class="select-start" name="button-start"></div>
+          <div class="select-special" name="button-special"></div>
+
+          <div class="stick" name="stick-1"></div>
+          <div class="stick" name="stick-2"></div>
+
+          <div class="face" name="button-dpad-top"></div>
+          <div class="face" name="button-dpad-bottom"></div>
+          <div class="face" name="button-dpad-left"></div>
+          <div class="face" name="button-dpad-right"></div>
+        </div>
+
+        <div class="labels">
+          <label for="button-1">?</label>
+          <label for="button-2">?</label>
+          <label for="button-3">?</label>
+          <label for="button-4">?</label>
+
+          <label for="button-left-shoulder-top">?</label>
+          <label for="button-right-shoulder-top">?</label>
+          <label for="button-left-shoulder-bottom">?</label>
+          <label for="button-right-shoulder-bottom">?</label>
+
+          <label for="button-select">?</label>
+          <label for="button-start">?</label>
+          <label for="button-special">?</label>
+
+          <label for="stick-1">?</label>
+          <label for="stick-2">?</label>
+
+          <label for="button-dpad-top">?</label>
+          <label for="button-dpad-bottom">?</label>
+          <label for="button-dpad-left">?</label>
+          <label for="button-dpad-right">?</label>
+
+          <label for="stick-1-axis-x">?</label>
+          <label for="stick-1-axis-y">?</label>
+          <label for="stick-2-axis-x">?</label>
+          <label for="stick-2-axis-y">?</label>
+          <div class="extra-inputs"></div>
+        </div>
+        <div class="index"></div>
+        <marquee class="name" scrolldelay="50" scrollamount="2"></marquee>
+      </li>
+  </div>
+
+  </body>
 
 </html>
