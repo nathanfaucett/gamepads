@@ -89,17 +89,20 @@ GamepadPrototype.init = function(e) {
     initArray(GamepadButton, this.buttons);
 
     Gamepad_update(this, e.axes, e.buttons);
-
-    return this;
 };
 
 GamepadPrototype.update = function(e) {
+    var changed = false;
 
     this.timestamp = e.timestamp;
 
-    Gamepad_update(this, e.axes, e.buttons);
+    changed = Gamepad_update(this, e.axes, e.buttons);
 
-    return this;
+    if (changed) {
+        this.emitArg("update", this);
+    }
+
+    return changed;
 };
 
 GamepadPrototype.setMapping = function(mapping) {
@@ -146,9 +149,7 @@ function Gamepad_update(_this, eventAxis, eventButtons) {
         changed = Gamepad_handleAxis(_this, i, axesMapping[i], axes, eventButtons, eventAxis, changed);
     }
 
-    if (changed) {
-        _this.emitArg("update", _this);
-    }
+    return changed;
 }
 
 function Gamepad_handleButton(_this, index, map, buttons, eventButtons, eventAxis, changed) {

@@ -78,7 +78,11 @@ function updateGamepad(index, eventGamepad) {
     var gamepad;
 
     if (hasGamepad(index)) {
-        controllers[index].update(eventGamepad);
+        gamepad = controllers[index];
+
+        if (gamepad.update(eventGamepad)) {
+            gamepads.emitArg("update", gamepad);
+        }
     } else {
         gamepad = Gamepad.create(eventGamepad.id);
 

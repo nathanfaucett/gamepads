@@ -9573,7 +9573,11 @@ function updateGamepad(index, eventGamepad) {
     var gamepad;
 
     if (hasGamepad(index)) {
-        controllers[index].update(eventGamepad);
+        gamepad = controllers[index];
+
+        if (gamepad.update(eventGamepad)) {
+            gamepads.emitArg("update", gamepad);
+        }
     } else {
         gamepad = Gamepad.create(eventGamepad.id);
 
@@ -10697,17 +10701,20 @@ GamepadPrototype.init = function(e) {
     initArray(GamepadButton, this.buttons);
 
     Gamepad_update(this, e.axes, e.buttons);
-
-    return this;
 };
 
 GamepadPrototype.update = function(e) {
+    var changed = false;
 
     this.timestamp = e.timestamp;
 
-    Gamepad_update(this, e.axes, e.buttons);
+    changed = Gamepad_update(this, e.axes, e.buttons);
 
-    return this;
+    if (changed) {
+        this.emitArg("update", this);
+    }
+
+    return changed;
 };
 
 GamepadPrototype.setMapping = function(mapping) {
@@ -10754,9 +10761,7 @@ function Gamepad_update(_this, eventAxis, eventButtons) {
         changed = Gamepad_handleAxis(_this, i, axesMapping[i], axes, eventButtons, eventAxis, changed);
     }
 
-    if (changed) {
-        _this.emitArg("update", _this);
-    }
+    return changed;
 }
 
 function Gamepad_handleButton(_this, index, map, buttons, eventButtons, eventAxis, changed) {
@@ -11099,7 +11104,7 @@ function isString(value) {
 
 },
 function(require, exports, module, undefined, global) {
-/* ../../node_modules/is_object/src/index.js */
+/* ../../node_modules/get_prototype_of/node_modules/is_object/src/index.js */
 
 var isNull = require(18);
 
