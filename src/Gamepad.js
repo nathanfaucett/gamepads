@@ -24,11 +24,22 @@ function Gamepad(id) {
     this.connected = null;
     this.mapping = defaultMapping;
     this.timestamp = null;
-    this.axes = new Array(4);
-    this.buttons = new Array(16);
+    this.axes = createArray(GamepadAxis, 4);
+    this.buttons = createArray(GamepadButton, 16);
 }
 EventEmitter.extend(Gamepad);
 GamepadPrototype = Gamepad.prototype;
+
+function createArray(Class, count) {
+    var array = new Array(count),
+        i = count;
+
+    while (i--) {
+        array[i] = new Class(i);
+    }
+
+    return array;
+}
 
 function parseId(id) {
     if ((match = id.match(reIdFirst))) {
@@ -149,4 +160,56 @@ function Gamepad_handleAxis(_this, index, map, axes, eventButtons, eventAxis) {
             _this.emitArg("axis", button);
         }
     }
+}
+
+GamepadPrototype.toJSON = function(json) {
+
+    json = json || {};
+
+    json.id = this.id;
+    json.uid = this.uid;
+    json.index = this.index;
+    json.connected = this.connected;
+    json.mapping = this.mapping;
+    json.timestamp = this.timestamp;
+    json.axes = eachToJSON(json.axes || [], this.axes);
+    json.buttons = eachToJSON(json.buttons || [], this.buttons);
+
+    return json;
+};
+
+GamepadPrototype.fromJSON = function(json) {
+
+    this.id = json.id;
+    this.uid = json.uid;
+    this.index = json.index;
+    this.connected = json.connected;
+    this.mapping = json.mapping;
+    this.timestamp = json.timestamp;
+    eachFromJSON(this.axes, json.axes);
+    eachFromJSON(this.buttons, json.buttons);
+
+    return this;
+};
+
+function eachToJSON(json, array) {
+    var i = -1,
+        il = array.length - 1;
+
+    while (i++ < il) {
+        json[i] = array[i].toJSON(json[i]);
+    }
+
+    return json;
+}
+
+function eachFromJSON(array, json) {
+    var i = -1,
+        il = json.length - 1;
+
+    while (i++ < il) {
+        array[i].fromJSON(json[i]);
+    }
+
+    return array;
 }

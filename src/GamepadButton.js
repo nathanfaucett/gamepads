@@ -18,3 +18,23 @@ GamepadButtonPrototype.update = function(pressed, value) {
 
     return changed;
 };
+
+GamepadButtonPrototype.toJSON = function(json) {
+
+    json = json || {};
+
+    json.index = this.index;
+    json.pressed = this.pressed;
+    json.value = this.value;
+
+    return json;
+};
+
+GamepadButtonPrototype.fromJSON = function(json) {
+
+    this.index = json.index;
+    this.pressed = json.pressed;
+    this.value = json.value;
+
+    return this;
+};
