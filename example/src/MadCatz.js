@@ -62,12 +62,14 @@ module.exports = {
         index: 0
     }, {
         type: 1,
-        index: 1
+        index: 1,
+        direction: -1
     }, {
         type: 1,
         index: 3
     }, {
         type: 1,
-        index: 4
+        index: 4,
+        direction: -1
     }]
 };

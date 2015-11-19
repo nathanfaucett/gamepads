@@ -80,7 +80,7 @@ function updateGamepad(index, eventGamepad) {
     if (hasGamepad(index)) {
         controllers[index].update(eventGamepad);
     } else {
-        gamepad = new Gamepad(eventGamepad.id);
+        gamepad = Gamepad.create(eventGamepad.id);
 
         gamepad.setMapping(getMapping(gamepad.uid));
         gamepad.init(eventGamepad);
@@ -101,6 +101,7 @@ function removeGamepad(index, eventGamepad) {
 
         gamepad.disconnect(eventGamepad);
         gamepads.emitArg("disconnect", gamepad);
+        gamepad.destroy();
     }
 }
 

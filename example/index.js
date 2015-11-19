@@ -160,7 +160,7 @@ gamepads.on("connect", function(gamepad) {
         y = Math.sin(angle) * Math.abs(y);
     
         elButton.css("margin-left", (x * 25) + "px");
-        elButton.css("margin-top", (y * 25) + "px");
+        elButton.css("margin-top", (y * -25) + "px");
 
         elLabel.text(axis.value.toFixed(2));
     });
@@ -9472,13 +9472,15 @@ module.exports = {
         index: 0
     }, {
         type: 1,
-        index: 1
+        index: 1,
+        direction: -1
     }, {
         type: 1,
         index: 3
     }, {
         type: 1,
-        index: 4
+        index: 4,
+        direction: -1
     }]
 };
 
@@ -9569,7 +9571,7 @@ function updateGamepad(index, eventGamepad) {
     if (hasGamepad(index)) {
         controllers[index].update(eventGamepad);
     } else {
-        gamepad = new Gamepad(eventGamepad.id);
+        gamepad = Gamepad.create(eventGamepad.id);
 
         gamepad.setMapping(getMapping(gamepad.uid));
         gamepad.init(eventGamepad);
@@ -9590,6 +9592,7 @@ function removeGamepad(index, eventGamepad) {
 
         gamepad.disconnect(eventGamepad);
         gamepads.emitArg("disconnect", gamepad);
+        gamepad.destroy();
     }
 }
 
@@ -10599,17 +10602,29 @@ module.exports = {
 function(require, exports, module, undefined, global) {
 /* ../../src/Gamepad.js */
 
-var EventEmitter = require(8),
+var createPool = require(37),
+    EventEmitter = require(8),
     isNullOrUndefined = require(15),
     isNumber = require(25),
     defaultMapping = require(11),
-    GamepadButton = require(37),
-    GamepadAxis = require(38);
+    GamepadButton = require(38),
+    GamepadAxis = require(39);
 
 
 var reIdFirst = /^(\d+)\-(\d+)\-/,
     reIdParams = /\([^0-9]+(\d+)[^0-9]+(\d+)\)$/,
     GamepadPrototype;
+
+
+function parseId(id) {
+    if ((match = id.match(reIdFirst))) {
+        return match[1] + "-" + match[2];
+    } else if ((match = id.match(reIdParams))) {
+        return match[1] + "-" + match[2];
+    } else {
+        return id;
+    }
+}
 
 
 module.exports = Gamepad;
@@ -10625,31 +10640,47 @@ function Gamepad(id) {
     this.connected = null;
     this.mapping = defaultMapping;
     this.timestamp = null;
-    this.axes = createArray(GamepadAxis, 4);
-    this.buttons = createArray(GamepadButton, 16);
+    this.axes = new Array(4);
+    this.buttons = new Array(16);
 }
 EventEmitter.extend(Gamepad);
+createPool(Gamepad);
 GamepadPrototype = Gamepad.prototype;
 
-function createArray(Class, count) {
-    var array = new Array(count),
-        i = count;
+Gamepad.create = function(id) {
+    return Gamepad.getPooled(id);
+};
+
+GamepadPrototype.destroy = function() {
+    Gamepad.release(this);
+    return this;
+};
+
+function releaseArray(array) {
+    var i = array.length;
 
     while (i--) {
-        array[i] = new Class(i);
+        array[i].destroy();
+        array[i] = null;
+    }
+}
+
+GamepadPrototype.destructor = function() {
+
+    releaseArray(this.axes);
+    releaseArray(this.buttons);
+
+    return this;
+};
+
+function initArray(Class, array) {
+    var i = array.length;
+
+    while (i--) {
+        array[i] = Class.create(i);
     }
 
     return array;
-}
-
-function parseId(id) {
-    if ((match = id.match(reIdFirst))) {
-        return match[1] + "-" + match[2];
-    } else if ((match = id.match(reIdParams))) {
-        return match[1] + "-" + match[2];
-    } else {
-        return id;
-    }
 }
 
 GamepadPrototype.init = function(e) {
@@ -10657,6 +10688,9 @@ GamepadPrototype.init = function(e) {
     this.index = e.index;
     this.connected = e.connected;
     this.timestamp = e.timestamp;
+
+    initArray(GamepadAxis, this.axes);
+    initArray(GamepadButton, this.buttons);
 
     Gamepad_update(this, e.axes, e.buttons);
 
@@ -10756,6 +10790,10 @@ function Gamepad_handleAxis(_this, index, map, axes, eventButtons, eventAxis) {
         isValueEvent = isNumber(eventButton);
         value = isValueEvent ? eventButton : eventButton.value;
         button = axes[index] || (axes[index] = new GamepadAxis(index));
+
+        if (map.direction) {
+            value *= map.direction;
+        }
 
         if (button.update(value)) {
             _this.emitArg("axis", button);
@@ -11911,9 +11949,200 @@ module.exports = now;
 
 },
 function(require, exports, module, undefined, global) {
+/* ../../node_modules/create_pool/src/index.js */
+
+var isFunction = require(16),
+    isNumber = require(25),
+    defineProperty = require(32);
+
+
+var descriptor = {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: null
+};
+
+
+module.exports = createPool;
+
+
+function createPool(Constructor, poolSize) {
+
+    addProperty(Constructor, "instancePool", []);
+    addProperty(Constructor, "getPooled", createPooler(Constructor));
+    addProperty(Constructor, "release", createReleaser(Constructor));
+
+    poolSize = poolSize || Constructor.poolSize;
+    Constructor.poolSize = isNumber(poolSize) ? (poolSize < -1 ? -1 : poolSize) : -1;
+
+    return Constructor;
+}
+
+function addProperty(object, name, value) {
+    descriptor.value = value;
+    defineProperty(object, name, descriptor);
+    descriptor.value = null;
+}
+
+function createPooler(Constructor) {
+    switch (Constructor.length) {
+        case 0:
+            return createNoArgumentPooler(Constructor);
+        case 1:
+            return createOneArgumentPooler(Constructor);
+        case 2:
+            return createTwoArgumentsPooler(Constructor);
+        case 3:
+            return createThreeArgumentsPooler(Constructor);
+        case 4:
+            return createFourArgumentsPooler(Constructor);
+        case 5:
+            return createFiveArgumentsPooler(Constructor);
+        default:
+            return createApplyPooler(Constructor);
+    }
+}
+
+function createNoArgumentPooler(Constructor) {
+    return function pooler() {
+        var instancePool = Constructor.instancePool,
+            instance;
+
+        if (instancePool.length) {
+            instance = instancePool.pop();
+            return instance;
+        } else {
+            return new Constructor();
+        }
+    };
+}
+
+function createOneArgumentPooler(Constructor) {
+    return function pooler(a0) {
+        var instancePool = Constructor.instancePool,
+            instance;
+
+        if (instancePool.length) {
+            instance = instancePool.pop();
+            Constructor.call(instance, a0);
+            return instance;
+        } else {
+            return new Constructor(a0);
+        }
+    };
+}
+
+function createTwoArgumentsPooler(Constructor) {
+    return function pooler(a0, a1) {
+        var instancePool = Constructor.instancePool,
+            instance;
+
+        if (instancePool.length) {
+            instance = instancePool.pop();
+            Constructor.call(instance, a0, a1);
+            return instance;
+        } else {
+            return new Constructor(a0, a1);
+        }
+    };
+}
+
+function createThreeArgumentsPooler(Constructor) {
+    return function pooler(a0, a1, a2) {
+        var instancePool = Constructor.instancePool,
+            instance;
+
+        if (instancePool.length) {
+            instance = instancePool.pop();
+            Constructor.call(instance, a0, a1, a2);
+            return instance;
+        } else {
+            return new Constructor(a0, a1, a2);
+        }
+    };
+}
+
+function createFourArgumentsPooler(Constructor) {
+    return function pooler(a0, a1, a2, a3) {
+        var instancePool = Constructor.instancePool,
+            instance;
+
+        if (instancePool.length) {
+            instance = instancePool.pop();
+            Constructor.call(instance, a0, a1, a2, a3);
+            return instance;
+        } else {
+            return new Constructor(a0, a1, a2, a3);
+        }
+    };
+}
+
+function createFiveArgumentsPooler(Constructor) {
+    return function pooler(a0, a1, a2, a3, a4) {
+        var instancePool = Constructor.instancePool,
+            instance;
+
+        if (instancePool.length) {
+            instance = instancePool.pop();
+            Constructor.call(instance, a0, a1, a2, a3, a4);
+            return instance;
+        } else {
+            return new Constructor(a0, a1, a2, a3, a4);
+        }
+    };
+}
+
+function createApplyConstructor(Constructor) {
+    function F(args) {
+        return Constructor.apply(this, args);
+    }
+    F.prototype = Constructor.prototype;
+
+    return function applyConstructor(args) {
+        return new F(args);
+    };
+}
+
+function createApplyPooler(Constructor) {
+    var applyConstructor = createApplyConstructor(Constructor);
+
+    return function pooler() {
+        var instancePool = Constructor.instancePool,
+            instance;
+
+        if (instancePool.length) {
+            instance = instancePool.pop();
+            Constructor.apply(instance, arguments);
+            return instance;
+        } else {
+            return applyConstructor(arguments);
+        }
+    };
+}
+
+function createReleaser(Constructor) {
+    return function releaser(instance) {
+        var instancePool = Constructor.instancePool;
+
+        if (isFunction(instance.destructor)) {
+            instance.destructor();
+        }
+        if (Constructor.poolSize === -1 || instancePool.length < Constructor.poolSize) {
+            instancePool[instancePool.length] = instance;
+        }
+    };
+}
+
+
+},
+function(require, exports, module, undefined, global) {
 /* ../../src/GamepadButton.js */
 
-var GamepadButtonPrototype = GamepadButton.prototype;
+var createPool = require(37);
+
+
+var GamepadButtonPrototype;
 
 
 module.exports = GamepadButton;
@@ -11924,6 +12153,17 @@ function GamepadButton(index) {
     this.pressed = false;
     this.value = 0.0;
 }
+createPool(GamepadButton);
+GamepadButtonPrototype = GamepadButton.prototype;
+
+GamepadButton.create = function(index) {
+    return GamepadButton.getPooled(index);
+};
+
+GamepadButtonPrototype.destroy = function() {
+    GamepadButton.release(this);
+    return this;
+};
 
 GamepadButtonPrototype.update = function(pressed, value) {
     var changed = value !== this.value;
@@ -11959,7 +12199,10 @@ GamepadButtonPrototype.fromJSON = function(json) {
 function(require, exports, module, undefined, global) {
 /* ../../src/GamepadAxis.js */
 
-var GamepadAxisPrototype = GamepadAxis.prototype;
+var createPool = require(37);
+
+
+var GamepadAxisPrototype;
 
 
 module.exports = GamepadAxis;
@@ -11969,6 +12212,17 @@ function GamepadAxis(index) {
     this.index = index;
     this.value = 0.0;
 }
+createPool(GamepadAxis);
+GamepadAxisPrototype = GamepadAxis.prototype;
+
+GamepadAxis.create = function(index) {
+    return GamepadAxis.getPooled(index);
+};
+
+GamepadAxisPrototype.destroy = function() {
+    GamepadAxis.release(this);
+    return this;
+};
 
 GamepadAxisPrototype.update = function(value) {
     var changed = value !== this.value;

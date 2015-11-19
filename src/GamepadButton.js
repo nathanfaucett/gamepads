@@ -1,4 +1,7 @@
-var GamepadButtonPrototype = GamepadButton.prototype;
+var createPool = require("create_pool");
+
+
+var GamepadButtonPrototype;
 
 
 module.exports = GamepadButton;
@@ -9,6 +12,17 @@ function GamepadButton(index) {
     this.pressed = false;
     this.value = 0.0;
 }
+createPool(GamepadButton);
+GamepadButtonPrototype = GamepadButton.prototype;
+
+GamepadButton.create = function(index) {
+    return GamepadButton.getPooled(index);
+};
+
+GamepadButtonPrototype.destroy = function() {
+    GamepadButton.release(this);
+    return this;
+};
 
 GamepadButtonPrototype.update = function(pressed, value) {
     var changed = value !== this.value;

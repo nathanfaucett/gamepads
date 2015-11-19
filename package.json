@@ -25,6 +25,7 @@
     "jquery": "^2.1.4"
   },
   "dependencies": {
+    "create_pool": "git://github.com/nathanfaucett/create_pool.git",
     "environment": "git://github.com/nathanfaucett/environment.git",
     "event_emitter": "git://github.com/nathanfaucett/event_emitter.git",
     "event_listener": "git://github.com/nathanfaucett/event_listener.git",

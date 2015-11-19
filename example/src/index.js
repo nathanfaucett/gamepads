@@ -99,7 +99,7 @@ gamepads.on("connect", function(gamepad) {
         y = Math.sin(angle) * Math.abs(y);
     
         elButton.css("margin-left", (x * 25) + "px");
-        elButton.css("margin-top", (y * 25) + "px");
+        elButton.css("margin-top", (y * -25) + "px");
 
         elLabel.text(axis.value.toFixed(2));
     });

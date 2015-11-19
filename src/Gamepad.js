@@ -1,4 +1,5 @@
-var EventEmitter = require("event_emitter"),
+var createPool = require("create_pool"),
+    EventEmitter = require("event_emitter"),
     isNullOrUndefined = require("is_null_or_undefined"),
     isNumber = require("is_number"),
     defaultMapping = require("./defaultMapping"),
@@ -9,6 +10,17 @@ var EventEmitter = require("event_emitter"),
 var reIdFirst = /^(\d+)\-(\d+)\-/,
     reIdParams = /\([^0-9]+(\d+)[^0-9]+(\d+)\)$/,
     GamepadPrototype;
+
+
+function parseId(id) {
+    if ((match = id.match(reIdFirst))) {
+        return match[1] + "-" + match[2];
+    } else if ((match = id.match(reIdParams))) {
+        return match[1] + "-" + match[2];
+    } else {
+        return id;
+    }
+}
 
 
 module.exports = Gamepad;
@@ -24,31 +36,47 @@ function Gamepad(id) {
     this.connected = null;
     this.mapping = defaultMapping;
     this.timestamp = null;
-    this.axes = createArray(GamepadAxis, 4);
-    this.buttons = createArray(GamepadButton, 16);
+    this.axes = new Array(4);
+    this.buttons = new Array(16);
 }
 EventEmitter.extend(Gamepad);
+createPool(Gamepad);
 GamepadPrototype = Gamepad.prototype;
 
-function createArray(Class, count) {
-    var array = new Array(count),
-        i = count;
+Gamepad.create = function(id) {
+    return Gamepad.getPooled(id);
+};
+
+GamepadPrototype.destroy = function() {
+    Gamepad.release(this);
+    return this;
+};
+
+function releaseArray(array) {
+    var i = array.length;
 
     while (i--) {
-        array[i] = new Class(i);
+        array[i].destroy();
+        array[i] = null;
+    }
+}
+
+GamepadPrototype.destructor = function() {
+
+    releaseArray(this.axes);
+    releaseArray(this.buttons);
+
+    return this;
+};
+
+function initArray(Class, array) {
+    var i = array.length;
+
+    while (i--) {
+        array[i] = Class.create(i);
     }
 
     return array;
-}
-
-function parseId(id) {
-    if ((match = id.match(reIdFirst))) {
-        return match[1] + "-" + match[2];
-    } else if ((match = id.match(reIdParams))) {
-        return match[1] + "-" + match[2];
-    } else {
-        return id;
-    }
 }
 
 GamepadPrototype.init = function(e) {
@@ -56,6 +84,9 @@ GamepadPrototype.init = function(e) {
     this.index = e.index;
     this.connected = e.connected;
     this.timestamp = e.timestamp;
+
+    initArray(GamepadAxis, this.axes);
+    initArray(GamepadButton, this.buttons);
 
     Gamepad_update(this, e.axes, e.buttons);
 
@@ -155,6 +186,10 @@ function Gamepad_handleAxis(_this, index, map, axes, eventButtons, eventAxis) {
         isValueEvent = isNumber(eventButton);
         value = isValueEvent ? eventButton : eventButton.value;
         button = axes[index] || (axes[index] = new GamepadAxis(index));
+
+        if (map.direction) {
+            value *= map.direction;
+        }
 
         if (button.update(value)) {
             _this.emitArg("axis", button);
