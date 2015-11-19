@@ -65,6 +65,10 @@ gamepads.on("connect", function(gamepad) {
     element.find(".index").html(index);
 
     $("#gamepads").append(element);
+    
+    gamepad.on("update", function(gamepad) {
+        console.log("Update Event");
+    });
 
     gamepad.on("button", function(button) {
         var elButton = element.find(".buttons div[name=" + domMappings[button.index] + "]"),

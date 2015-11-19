@@ -126,6 +126,10 @@ gamepads.on("connect", function(gamepad) {
     element.find(".index").html(index);
 
     $("#gamepads").append(element);
+    
+    gamepad.on("update", function(gamepad) {
+        console.log("Update Event");
+    });
 
     gamepad.on("button", function(button) {
         var elButton = element.find(".buttons div[name=" + domMappings[button.index] + "]"),
@@ -10727,7 +10731,9 @@ GamepadPrototype.disconnect = function(e) {
 };
 
 function Gamepad_update(_this, eventAxis, eventButtons) {
-    var mapping = _this.mapping,
+    var changed = false,
+
+        mapping = _this.mapping,
         buttonsMapping = mapping.buttons,
         axesMapping = mapping.axes,
 
@@ -10739,17 +10745,21 @@ function Gamepad_update(_this, eventAxis, eventButtons) {
     i = -1;
     il = buttonsMapping.length - 1;
     while (i++ < il) {
-        Gamepad_handleButton(_this, i, buttonsMapping[i], buttons, eventButtons, eventAxis);
+        changed = Gamepad_handleButton(_this, i, buttonsMapping[i], buttons, eventButtons, eventAxis, changed);
     }
 
     i = -1;
     il = axesMapping.length - 1;
     while (i++ < il) {
-        Gamepad_handleAxis(_this, i, axesMapping[i], axes, eventButtons, eventAxis);
+        changed = Gamepad_handleAxis(_this, i, axesMapping[i], axes, eventButtons, eventAxis, changed);
+    }
+
+    if (changed) {
+        _this.emitArg("update", _this);
     }
 }
 
-function Gamepad_handleButton(_this, index, map, buttons, eventButtons, eventAxis) {
+function Gamepad_handleButton(_this, index, map, buttons, eventButtons, eventAxis, changed) {
     var mapIndex = map.index,
         isButton = map.type === 0,
         eventButton = isButton ? eventButtons[mapIndex] : eventAxis[mapIndex],
@@ -10775,12 +10785,15 @@ function Gamepad_handleButton(_this, index, map, buttons, eventButtons, eventAxi
         pressed = isValueEvent ? value !== 0.0 : eventButton.pressed;
 
         if (button.update(pressed, value)) {
+            changed = true;
             _this.emitArg("button", button);
         }
     }
+
+    return changed;
 }
 
-function Gamepad_handleAxis(_this, index, map, axes, eventButtons, eventAxis) {
+function Gamepad_handleAxis(_this, index, map, axes, eventButtons, eventAxis, changed) {
     var mapIndex = map.index,
         isButton = map.type === 0,
         eventButton = isButton ? eventButtons[mapIndex] : eventAxis[mapIndex],
@@ -10796,9 +10809,12 @@ function Gamepad_handleAxis(_this, index, map, axes, eventButtons, eventAxis) {
         }
 
         if (button.update(value)) {
+            changed = true;
             _this.emitArg("axis", button);
         }
     }
+
+    return changed;
 }
 
 GamepadPrototype.toJSON = function(json) {
@@ -12225,7 +12241,7 @@ GamepadAxisPrototype.destroy = function() {
 };
 
 GamepadAxisPrototype.update = function(value) {
-    var changed = value !== this.value;
+    var changed = Math.abs(value - this.value) > 0.01;
 
     this.value = value;
 

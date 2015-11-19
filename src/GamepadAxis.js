@@ -24,7 +24,7 @@ GamepadAxisPrototype.destroy = function() {
 };
 
 GamepadAxisPrototype.update = function(value) {
-    var changed = value !== this.value;
+    var changed = Math.abs(value - this.value) > 0.01;
 
     this.value = value;
 
