@@ -59,37 +59,37 @@ var axisMappings = [
 gamepads.on("connect", function(gamepad) {
     var index = gamepad.index,
         id = "gamepad-" + index,
-        element = $("#template").first().clone();
-        
-    element.attr("id", id);
-    element.find(".index").html(index);
+        $element = $("#template").first().clone();
 
-    $("#gamepads").append(element);
-    
+    $element.attr("id", id);
+    $element.find(".index").html(index);
+
+    $("#gamepads").append($element);
+
     gamepad.on("update", function(gamepad) {
-        console.log("Update Event");
+        console.log("Update Event from " + gamepad.id);
     });
 
     gamepad.on("button", function(button) {
-        var elButton = element.find(".buttons div[name=" + domMappings[button.index] + "]"),
-            elLabel = element.find(".labels label[for=" + domMappings[button.index] + "]");
+        var $elButton = $element.find(".buttons div[name=" + domMappings[button.index] + "]"),
+            $elLabel = $element.find(".labels label[for=" + domMappings[button.index] + "]");
 
         if (button.pressed) {
-            elButton.addClass("pressed");
+            $elButton.addClass("pressed");
         } else {
-            elButton.removeClass("pressed");
+            $elButton.removeClass("pressed");
         }
 
-        elLabel.text(button.value.toFixed(2));
+        $elLabel.text(button.value.toFixed(2));
     });
-    
+
     gamepad.on("axis", function(axis) {
-        var elButton = element.find(".buttons div[name=" + domAxisMappings0[(axis.index < 2 ? 0 : 1)] + "]"),
-            elLabel = element.find(".labels label[for=" + domAxisMappings1[axis.index] + "]"),
+        var $elButton = $element.find(".buttons div[name=" + domAxisMappings0[(axis.index < 2 ? 0 : 1)] + "]"),
+            $elLabel = $element.find(".labels label[for=" + domAxisMappings1[axis.index] + "]"),
             x, y, angle;
-    
+
         axisMappings[axis.index] = axis.value;
-        
+
         if (axis.index % 2 === 0) {
             x = axisMappings[axis.index];
             y = axisMappings[axis.index + 1];
@@ -97,15 +97,15 @@ gamepads.on("connect", function(gamepad) {
             x = axisMappings[axis.index - 1];
             y = axisMappings[axis.index];
         }
-        
+
         angle = Math.atan2(y, x);
         x = Math.cos(angle) * Math.abs(x);
         y = Math.sin(angle) * Math.abs(y);
-    
-        elButton.css("margin-left", (x * 25) + "px");
-        elButton.css("margin-top", (y * -25) + "px");
 
-        elLabel.text(axis.value.toFixed(2));
+        $elButton.css("margin-left", (x * 25) + "px");
+        $elButton.css("margin-top", (y * -25) + "px");
+
+        $elLabel.text(axis.value.toFixed(2));
     });
 
     if (connected === 0) {
@@ -118,7 +118,7 @@ gamepads.on("connect", function(gamepad) {
 gamepads.on("disconnect", function(gamepad) {
     var index = gamepad.index,
         id = "gamepad-" + index,
-        element = $("#" + id);
+        $element = $("#" + id);
 
     $("#" + id).remove();
 
