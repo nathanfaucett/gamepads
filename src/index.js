@@ -1,8 +1,8 @@
-var has = require("has"),
-    environment = require("environment"),
-    eventListener = require("event_listener"),
-    EventEmitter = require("event_emitter"),
-    requestAnimationFrame = require("request_animation_frame"),
+var has = require("@nathanfaucett/has"),
+    environment = require("@nathanfaucett/environment"),
+    eventListener = require("@nathanfaucett/event_listener"),
+    EventEmitter = require("@nathanfaucett/event_emitter"),
+    requestAnimationFrame = require("@nathanfaucett/request_animation_frame"),
     isSupported = require("./isSupported"),
     defaultMapping = require("./defaultMapping"),
     Gamepad = require("./Gamepad");

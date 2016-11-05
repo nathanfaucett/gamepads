@@ -1,4 +1,4 @@
-var environment = require("environment");
+var environment = require("@nathanfaucett/environment");
 
 
 var navigator = environment.window.navigator;

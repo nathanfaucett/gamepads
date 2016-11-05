@@ -1,7 +1,7 @@
-var createPool = require("create_pool"),
-    EventEmitter = require("event_emitter"),
-    isNullOrUndefined = require("is_null_or_undefined"),
-    isNumber = require("is_number"),
+var createPool = require("@nathanfaucett/create_pool"),
+    EventEmitter = require("@nathanfaucett/event_emitter"),
+    isNullOrUndefined = require("@nathanfaucett/is_null_or_undefined"),
+    isNumber = require("@nathanfaucett/is_number"),
     defaultMapping = require("./defaultMapping"),
     GamepadButton = require("./GamepadButton"),
     GamepadAxis = require("./GamepadAxis");
